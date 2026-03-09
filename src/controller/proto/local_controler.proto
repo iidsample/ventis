@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package local_controller;
+
+service LocalController {
+    rpc Execute(JsonResponse) returns (JsonResponse) {}
+}
+
+message JsonResponse{
+    string resonse = 1;
+}

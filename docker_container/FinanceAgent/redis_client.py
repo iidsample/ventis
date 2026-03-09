@@ -1,0 +1,57 @@
+import redis
+
+
+class RedisClient(object):
+    """Redis utility for connecting to localhost with support for strings, hashes, and sets."""
+
+    def __init__(self, host="localhost", port=6379, db=0):
+        self.client = redis.Redis(host=host, port=port, db=db)
+
+    # --- String operations ---
+
+    def set(self, key, value):
+        """Set a key-value pair in Redis."""
+        self.client.set(key, value)
+
+    def get(self, key):
+        """Get a value by key from Redis. Returns None if key does not exist."""
+        value = self.client.get(key)
+        if value is not None:
+            return value.decode("utf-8")
+        return None
+
+    # --- Hash operations ---
+
+    def hset(self, name, field, value):
+        """Set a single field in a hash."""
+        self.client.hset(name, field, value)
+
+    def hset_multiple(self, name, mapping):
+        """Set multiple fields in a hash at once."""
+        self.client.hset(name, mapping=mapping)
+
+    def hget(self, name, field):
+        """Get a single field from a hash. Returns None if field does not exist."""
+        value = self.client.hget(name, field)
+        if value is not None:
+            return value.decode("utf-8")
+        return None
+
+    def hgetall(self, name):
+        """Get all fields and values from a hash."""
+        data = self.client.hgetall(name)
+        return {k.decode("utf-8"): v.decode("utf-8") for k, v in data.items()}
+
+    # --- Set operations ---
+
+    def sadd(self, name, *values):
+        """Add one or more members to a set."""
+        self.client.sadd(name, *values)
+
+    def srem(self, name, *values):
+        """Remove one or more members from a set."""
+        self.client.srem(name, *values)
+
+    def smembers(self, name):
+        """Get all members of a set."""
+        return {v.decode("utf-8") for v in self.client.smembers(name)}
