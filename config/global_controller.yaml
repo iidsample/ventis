@@ -4,7 +4,7 @@
 agents:
   - name: FinanceAgent
     host: localhost
-    port: 40051
+    port: 8051
     redis_port: 6379   # Redis port on this node
     # user: sagarwal  # SSH user for remote hosts (omit for localhost)
     # Number of instances to launch
@@ -18,7 +18,7 @@ agents:
 
   - name: MarketResearchAgent
     host: localhost
-    port: 40052
+    port: 8052
     redis_port: 6379
     # user: sagarwal
     replicas: 1

@@ -17,15 +17,15 @@ class LocalController(object):
 
     def __init__(self, port=50051):
         self.port = port
-        self.host = os.environ.get("VENTIS_REDIS_HOST", "localhost")
+        self.agent_host = os.environ.get("VENTIS_AGENT_HOST", "localhost")
         self.server, self.servicer = start_server(port)
         self.request_queue = self.servicer.request_queue
 
         # Connect to Redis and report healthy status
-        redis_host = self.host
+        redis_host = os.environ.get("VENTIS_REDIS_HOST", "localhost")
         redis_port = int(os.environ.get("VENTIS_REDIS_PORT", 6379))
         self.redis = RedisClient(host=redis_host, port=redis_port)
-        self._status_key = f"controller:{self.host}:{self.port}:status"
+        self._status_key = f"controller:{self.agent_host}:{self.port}:status"
         self.redis.set(self._status_key, "healthy")
 
         logger.info("Local controller initialized, reported healthy to Redis.")

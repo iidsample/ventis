@@ -54,6 +54,7 @@ class GlobalController(object):
         self.containers = {}  # name -> [container_name, ...]
         self.redis_containers = {}  # host -> container_name
         self.node_redis = {}  # host -> RedisClient
+        self._last_status = {}  # (host, port) -> last known status
 
         # Clean up any stale containers from previous runs
         self._cleanup_stale_containers()
@@ -264,6 +265,47 @@ class GlobalController(object):
         self.node_redis.clear()
 
     # ------------------------------------------------------------------ #
+    #  Startup health check                                               #
+    # ------------------------------------------------------------------ #
+
+    def _wait_for_healthy(self, timeout=30, interval=2):
+        """
+        Block until all controllers report healthy in Redis, or until timeout.
+
+        Args:
+            timeout:  Maximum seconds to wait.
+            interval: Seconds between checks.
+        """
+        deadline = time.time() + timeout
+        pending = [
+            (c["name"], c.get("host", "localhost"), c.get("port", 50051))
+            for c in self.controllers
+        ]
+
+        logger.info("Waiting for %d controller(s) to become healthy (timeout=%ds)...",
+                    len(pending), timeout)
+
+        while pending and time.time() < deadline:
+            still_pending = []
+            for name, host, port in pending:
+                status = self.redis.get(f"controller:{host}:{port}:status")
+                if status == "healthy":
+                    logger.info("Controller %s (%s:%s) is ready.", name, host, port)
+                    self._last_status[(host, port)] = "healthy"
+                else:
+                    still_pending.append((name, host, port))
+            pending = still_pending
+            if pending:
+                time.sleep(interval)
+
+        if pending:
+            for name, host, port in pending:
+                logger.warning(
+                    "Controller %s (%s:%s) not ready after %ds.",
+                    name, host, port, timeout,
+                )
+
+    # ------------------------------------------------------------------ #
     #  Polling loop                                                       #
     # ------------------------------------------------------------------ #
 
@@ -288,17 +330,26 @@ class GlobalController(object):
             port = ctrl.get("port", 50051)
             status_key = f"controller:{host}:{port}:status"
 
-            status = self.redis.get(status_key)
+            status = self.redis.get(status_key) or "unknown"
+            prev = self._last_status.get((host, port))
 
-            if status and status == "healthy":
-                logger.debug("Controller %s (%s:%s) is healthy.", name, host, port)
-                self._on_controller_healthy(name, host, port)
+            if status != prev:
+                if status == "healthy":
+                    logger.info("Controller %s (%s:%s) is now healthy.", name, host, port)
+                    self._on_controller_healthy(name, host, port)
+                else:
+                    logger.warning(
+                        "Controller %s (%s:%s) status changed: %s -> %s",
+                        name, host, port, prev or "(none)", status,
+                    )
+                    self._on_controller_unhealthy(name, host, port)
+                self._last_status[(host, port)] = status
             else:
-                logger.warning(
-                    "Controller %s (%s:%s) status: %s",
-                    name, host, port, status or "unknown",
-                )
-                self._on_controller_unhealthy(name, host, port)
+                # No change — healthy stays quiet, unhealthy stays quiet too
+                if status == "healthy":
+                    self._on_controller_healthy(name, host, port)
+                else:
+                    self._on_controller_unhealthy(name, host, port)
 
     # ------------------------------------------------------------------ #
     #  Extensibility hooks — override in subclasses                       #
@@ -464,13 +515,19 @@ class GlobalController(object):
                 port = base_port + i
                 container_name = f"ventis-{name.lower()}-{i}"
 
+                # Containers can't reach host's Redis via "localhost";
+                # use host.docker.internal to route to the Docker host.
+                redis_host_for_container = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
+
                 cmd = [
                     "docker", "run", "-d",
                     "--rm",
+                    "--add-host=host.docker.internal:host-gateway",
                     "--name", container_name,
                     "-p", f"{port}:{port}",
                     "-e", f"VENTIS_AGENT_PORT={port}",
-                    "-e", f"VENTIS_REDIS_HOST={host}",
+                    "-e", f"VENTIS_AGENT_HOST={host}",
+                    "-e", f"VENTIS_REDIS_HOST={redis_host_for_container}",
                     "-e", f"VENTIS_REDIS_PORT={ctrl.get('redis_port', 6379)}",
                 ]
 
@@ -586,4 +643,5 @@ if __name__ == "__main__":
     atexit.register(controller.cleanup)
 
     controller.launch_docker_agents()
+    controller._wait_for_healthy()
     controller.run()
