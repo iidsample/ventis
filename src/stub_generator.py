@@ -5,6 +5,7 @@ Reads a YAML agent definition and generates an importable Python stub file
 where each function returns a Future object. Similar in spirit to how gRPC
 generates *_pb2_grpc.py stub files from .proto definitions.
 
+
 Usage:
     python stub_generator.py <yaml_path> [-o output_path]
 """
@@ -331,16 +332,122 @@ COPY . .
 
 ENV VENTIS_AGENT_NAME={agent_name}
 ENV VENTIS_AGENT_FILE={agent_basename}
-ENV VENTIS_AGENT_PORT=50051
 
-EXPOSE $VENTIS_AGENT_PORT
+EXPOSE 50051
 
-CMD python local_controller.py --port $VENTIS_AGENT_PORT
+CMD python local_controller.py --port 50051
 """
     with open(os.path.join(output_dir, "Dockerfile"), "w") as f:
         f.write(dockerfile)
 
     print(f"Generated Docker context for '{agent_name}' -> {output_dir}")
+    return output_dir
+
+
+def generate_workflow_docker(workflow_file, stub_files, output_dir=None):
+    """
+    Generate a Docker build context for a workflow.
+
+    Creates a directory containing a Dockerfile, requirements.txt,
+    workflow_launcher.py, and all source files needed to run the workflow
+    with its own local controller.
+
+    Args:
+        workflow_file: Path to the workflow Python file.
+        stub_files:    List of stub file paths to include.
+        output_dir:    Optional output directory (default: docker_container/Workflow/).
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.join(script_dir, "..")
+
+    if output_dir is None:
+        output_dir = os.path.join(project_root, "docker_container", "Workflow")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ---- requirements.txt ------------------------------------------------
+    requirements = "grpcio\ngrpcio-tools\nredis\npyyaml\nflask\nipdb\nipython\n"
+    with open(os.path.join(output_dir, "requirements.txt"), "w") as f:
+        f.write(requirements)
+
+    # ---- Copy source files into the build context ------------------------
+    workflow_basename = os.path.basename(workflow_file)
+
+    files_to_copy = [
+        (os.path.abspath(workflow_file), workflow_basename),
+        (os.path.join(script_dir, "future.py"), "future.py"),
+        (os.path.join(script_dir, "deploy.py"), "deploy.py"),
+        (os.path.join(script_dir, "controller", "local_controller.py"), "local_controller.py"),
+        (os.path.join(script_dir, "controller", "local_controller_frontend.py"), "local_controller_frontend.py"),
+        (os.path.join(project_root, "utils", "redis_client.py"), "redis_client.py"),
+    ]
+
+    # Copy stub files
+    for stub_file in stub_files:
+        files_to_copy.append(
+            (os.path.abspath(stub_file), os.path.basename(stub_file))
+        )
+
+    # Copy gRPC generated stubs if they exist
+    grpc_stubs_dir = os.path.join(project_root, "grpc_stubs")
+    if os.path.isdir(grpc_stubs_dir):
+        for fname in os.listdir(grpc_stubs_dir):
+            if fname.endswith(".py"):
+                files_to_copy.append(
+                    (os.path.join(grpc_stubs_dir, fname), fname)
+                )
+
+    for src, dst in files_to_copy:
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(output_dir, dst))
+        else:
+            print(f"  Warning: source file not found, skipping: {src}")
+
+    # ---- workflow_launcher.py --------------------------------------------
+    launcher = f"""import threading
+import time
+import sys
+
+from local_controller import LocalController
+
+
+def start_lc():
+    controller = LocalController(port=50051)
+    controller.run()
+
+
+# Start local controller in background thread
+lc_thread = threading.Thread(target=start_lc, daemon=True)
+lc_thread.start()
+
+# Give the LC a moment to start up
+time.sleep(1)
+
+# Run the workflow (which calls deploy() -> Flask server)
+exec(open("{workflow_basename}").read())
+"""
+    with open(os.path.join(output_dir, "workflow_launcher.py"), "w") as f:
+        f.write(launcher)
+
+    # ---- Dockerfile ------------------------------------------------------
+    dockerfile = f"""FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 50051
+EXPOSE 8080
+
+CMD python workflow_launcher.py
+"""
+    with open(os.path.join(output_dir, "Dockerfile"), "w") as f:
+        f.write(dockerfile)
+
+    print(f"Generated workflow Docker context -> {output_dir}")
     return output_dir
 
 
@@ -373,20 +480,44 @@ if __name__ == "__main__":
         action="store_true",
         help="Generate a Docker build context for the agent",
     )
+    parser.add_argument(
+        "--workflow",
+        action="store_true",
+        help="Generate a Docker build context for a workflow",
+    )
+    parser.add_argument(
+        "--workflow-file",
+        default=None,
+        help="Path to the workflow Python file (required for --workflow)",
+    )
+    parser.add_argument(
+        "--stub-files",
+        nargs="*",
+        default=[],
+        help="Stub files to include in the workflow Docker context",
+    )
 
     args = parser.parse_args()
 
-    # Always generate the stub
-    if args.output:
-        output_path = args.output
-    else:
-        base_name = os.path.splitext(os.path.basename(args.yaml_path))[0]
-        output_path = os.path.join(stubs_dir, f"{base_name}_stub.py")
+    # Always generate the stub (unless --workflow mode)
+    if not args.workflow:
+        if args.output:
+            output_path = args.output
+        else:
+            base_name = os.path.splitext(os.path.basename(args.yaml_path))[0]
+            output_path = os.path.join(stubs_dir, f"{base_name}_stub.py")
 
-    generate_stub(args.yaml_path, output_path)
+        generate_stub(args.yaml_path, output_path)
 
     # Optionally generate Docker context
     if args.docker:
         if not args.agent_file:
             parser.error("--agent-file is required when using --docker")
         generate_docker(args.yaml_path, args.agent_file)
+
+    # Generate workflow Docker context
+    if args.workflow:
+        if not args.workflow_file:
+            parser.error("--workflow-file is required when using --workflow")
+        generate_workflow_docker(args.workflow_file, args.stub_files)
+

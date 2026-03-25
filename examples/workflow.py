@@ -33,7 +33,11 @@ def main(ticker: str = "AAPL"):
     # Call market agent functions
     trend = market.get_market_trend(sector="tech")
     analysis = market.get_sector_analysis(sector="tech")
-    competitors = market.get_competitor_list(company="Apple")
+
+    # Chain agent outputs: pass the Future from FinanceAgent directly
+    # into MarketResearchAgent. The framework will resolve the Future's
+    # value before executing get_competitor_list.
+    competitors = market.get_competitor_list(company=company)
 
     print(f"Competitors: {competitors.value()}")
 

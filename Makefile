@@ -14,7 +14,11 @@ docker:
 	docker build -t ventis-financeagent docker_container/FinanceAgent/
 	docker build -t ventis-marketresearchagent docker_container/MarketResearchAgent/
 
-all: stubs grpc docker
+workflow-docker:
+	python src/stub_generator.py --workflow --workflow-file ./examples/workflow.py --stub-files ./stubs/finance_agent_stub.py ./stubs/market_agent_stub.py
+	docker build -t ventis-workflow docker_container/Workflow/
+
+all: stubs grpc docker workflow-docker
 
 clean:
 	rm -f ./stubs/*_stub.py
@@ -22,4 +26,4 @@ clean:
 	rm -f ./grpc_stubs/*_pb2_grpc.py
 	rm -rf ./docker_container/
 
-.PHONY: stubs grpc docker all clean
+.PHONY: stubs grpc docker workflow-docker all clean

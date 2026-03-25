@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 # defines the future object which will be returned by each function call
 class Future(object):
-    redis = RedisClient()
+    redis = RedisClient(
+        host=os.environ.get("VENTIS_REDIS_HOST", "localhost"),
+        port=int(os.environ.get("VENTIS_REDIS_PORT", 6379)),
+    )
 
     # Single local controller connection, shared across all futures
     _lc_host = os.environ.get("VENTIS_LC_HOST", "localhost")
@@ -147,6 +150,23 @@ class Future(object):
     def _get_consumers(self):
         """Return the list of consumers from Redis."""
         return self.redis.smembers(self._consumers_key())
+
+
+    def _notify_consumers(self):
+        """Push this future's result to all registered consumer endpoints via gRPC WriteResult."""
+        consumers = self._get_consumers()
+        if not consumers:
+            return
+        for endpoint in consumers:
+            try:
+                channel = grpc.insecure_channel(endpoint)
+                stub = local_controler_pb2_grpc.LocalControllerStub(channel)
+                payload = json.dumps({"future_id": self.id, "result": self.result})
+                request = local_controler_pb2.JsonResponse(resonse=payload)
+                stub.WriteResult(request)
+                logger.info("Notified consumer %s with result for future %s", endpoint, self.id)
+            except Exception as e:
+                logger.error("Failed to notify consumer %s for future %s: %s", endpoint, self.id, e)
 
     def _add_consumer(self, consumer):
         """Add a consumer."""

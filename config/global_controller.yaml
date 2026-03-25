@@ -27,6 +27,15 @@ agents:
       memory: 512
     entrypoint: examples/market_agent.py
 
+  - name: Workflow
+    host: localhost
+    port: 8050             # LC gRPC port (exposed to host)
+    type: workflow
+    api_port: 8080         # Flask REST API port (exposed to host)
+    redis_port: 6379
+    replicas: 1
+    workflow_file: examples/workflow.py
+
 # Polling interval in seconds
 poll_interval: 5
 

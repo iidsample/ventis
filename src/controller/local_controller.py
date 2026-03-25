@@ -35,6 +35,10 @@ class LocalController(object):
         self.agent_name = os.environ.get("VENTIS_AGENT_NAME")
         self.agent_file = os.environ.get("VENTIS_AGENT_FILE")
         
+        # Public port is how the routing table and other nodes know us;
+        # internally the gRPC server binds to `port` (50051 inside Docker).
+        self.public_port = os.environ.get("VENTIS_AGENT_PORT", str(port))
+        
         self.server, self.servicer = start_server(port)
         self.request_queue = self.servicer.request_queue
 
@@ -42,11 +46,11 @@ class LocalController(object):
         redis_host = os.environ.get("VENTIS_REDIS_HOST", "localhost")
         redis_port = int(os.environ.get("VENTIS_REDIS_PORT", 6379))
         self.redis = RedisClient(host=redis_host, port=redis_port)
-        self._status_key = f"controller:{self.agent_host}:{self.port}:status"
+        self._status_key = f"controller:{self.agent_host}:{self.public_port}:status"
         self.redis.set(self._status_key, "healthy")
 
         # My own endpoint for comparison with routing table
-        self._my_endpoint = f"{self.agent_host}:{self.port}"
+        self._my_endpoint = f"{self.agent_host}:{self.public_port}"
 
         # Cache for gRPC stubs to remote controllers
         self._remote_channels = {}  # endpoint -> grpc.Channel
@@ -140,8 +144,46 @@ class LocalController(object):
         if endpoint == self._my_endpoint:
             self._execute_locally(service, function, args, future_id, origin)
         else:
+            # Register the target as a consumer for any Future args
+            # so results get pushed to its Redis via WriteResult.
+            for key, value in args.items():
+                if isinstance(value, str) and len(value) == 32 and all(c in "0123456789abcdefABCDEF" for c in value):
+                    future_key = f"future:{value}"
+                    if self.redis.hget(future_key, "id") is not None:
+                        self.redis.sadd(f"{future_key}:consumers", endpoint)
+                        logger.info("Registered %s as consumer of future %s (arg '%s')", endpoint, value, key)
+
             logger.info("Forwarding %s.%s (future=%s) to %s", service, function, future_id, endpoint)
             self._forward_request(endpoint, data)
+
+    def _resolve_future_args(self, args, poll_interval=0.01, timeout=300):
+        """
+        Check each arg value. If it is a 32-character hex string, assume it's
+        a Future ID. Poll Redis until the result is available and replace
+        the arg with the resolved value.
+        """
+        resolved = {}
+        for key, value in args.items():
+            # Check if this arg value is a UUID hex string identifying a future
+            if isinstance(value, str) and len(value) == 32 and all(c in "0123456789abcdefABCDEF" for c in value):
+                future_key = f"future:{value}"
+                logger.info("Arg '%s' looks like a Future UUID (%s), waiting for result...", key, value)
+                start = time.time()
+                while True:
+                    result = self.redis.hget(future_key, "result")
+                    if result is not None and result != "":
+                        logger.info("Future %s resolved for arg '%s'", value, key)
+                        resolved[key] = result
+                        break
+                    if time.time() - start > timeout:
+                        raise TimeoutError(
+                            f"Timed out waiting for future {value} (arg '{key}') "
+                            f"after {timeout}s"
+                        )
+                    time.sleep(poll_interval)
+            else:
+                resolved[key] = value
+        return resolved
 
     def _execute_locally(self, service, function, args, future_id, origin=None):
         """Execute a request on the local agent and write the result to Redis."""
@@ -155,6 +197,9 @@ class LocalController(object):
             return
 
         try:
+            # Resolve any Future IDs in the args before executing
+            args = self._resolve_future_args(args)
+
             logger.info("Executing %s.%s (future=%s) locally", service, function, future_id)
             result = method(**args)
 

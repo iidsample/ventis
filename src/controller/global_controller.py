@@ -135,7 +135,10 @@ class GlobalController(object):
             name = ctrl["name"]
             host = ctrl.get("host", "localhost")
             port = ctrl.get("port", 50051)
-            endpoint = f"{host}:{port}"
+            # Use host.docker.internal for localhost so Docker containers
+            # can reach each other through the host's port mappings.
+            rt_host = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
+            endpoint = f"{rt_host}:{port}"
             table[name] = endpoint
 
         # Write the hash: service_name -> host:port
@@ -507,6 +510,7 @@ class GlobalController(object):
             base_port = ctrl.get("port", 50051)
             replicas = ctrl.get("replicas", 1)
             resources = ctrl.get("resources", {})
+            ctrl_type = ctrl.get("type", "agent")
 
             image = f"ventis-{name.lower()}"
             self.containers[name] = []
@@ -524,12 +528,17 @@ class GlobalController(object):
                     "--rm",
                     "--add-host=host.docker.internal:host-gateway",
                     "--name", container_name,
-                    "-p", f"{port}:{port}",
+                    "-p", f"{port}:50051",
                     "-e", f"VENTIS_AGENT_PORT={port}",
-                    "-e", f"VENTIS_AGENT_HOST={host}",
+                    "-e", f"VENTIS_AGENT_HOST={'host.docker.internal' if host in ('localhost', '127.0.0.1') else host}",
                     "-e", f"VENTIS_REDIS_HOST={redis_host_for_container}",
                     "-e", f"VENTIS_REDIS_PORT={ctrl.get('redis_port', 6379)}",
                 ]
+
+                # Workflow containers also expose the REST API port
+                if ctrl_type == "workflow":
+                    api_port = ctrl.get("api_port", 8080)
+                    cmd.extend(["-p", f"{api_port}:8080"])
 
                 # Apply resource limits
                 cpu = resources.get("cpu")
