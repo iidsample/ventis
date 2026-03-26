@@ -153,6 +153,13 @@ class LocalController(object):
                         self.redis.sadd(f"{future_key}:consumers", endpoint)
                         logger.info("Registered %s as consumer of future %s (arg '%s')", endpoint, value, key)
 
+                        # If the result is already available, push it immediately.
+                        # This handles the race where _notify_consumers already ran.
+                        existing_result = self.redis.hget(future_key, "result")
+                        if existing_result is not None:
+                            logger.info("Future %s already resolved, pushing result to %s", value, endpoint)
+                            self._send_result_callback(endpoint, value, existing_result)
+
             logger.info("Forwarding %s.%s (future=%s) to %s", service, function, future_id, endpoint)
             self._forward_request(endpoint, data)
 
