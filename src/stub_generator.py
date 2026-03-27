@@ -296,6 +296,7 @@ def generate_docker(yaml_path, agent_file, output_dir=None):
         # (source_path, destination_filename)
         (os.path.abspath(agent_file), os.path.basename(agent_file)),
         (os.path.join(script_dir, "future.py"), "future.py"),
+        (os.path.join(script_dir, "ventis_context.py"), "ventis_context.py"),
         (os.path.join(script_dir, "controller", "local_controller.py"), "local_controller.py"),
         (os.path.join(script_dir, "controller", "local_controller_frontend.py"), "local_controller_frontend.py"),
         (os.path.join(project_root, "utils", "redis_client.py"), "redis_client.py"),
@@ -376,6 +377,7 @@ def generate_workflow_docker(workflow_file, stub_files, output_dir=None):
     files_to_copy = [
         (os.path.abspath(workflow_file), workflow_basename),
         (os.path.join(script_dir, "future.py"), "future.py"),
+        (os.path.join(script_dir, "ventis_context.py"), "ventis_context.py"),
         (os.path.join(script_dir, "deploy.py"), "deploy.py"),
         (os.path.join(script_dir, "controller", "local_controller.py"), "local_controller.py"),
         (os.path.join(script_dir, "controller", "local_controller_frontend.py"), "local_controller_frontend.py"),
