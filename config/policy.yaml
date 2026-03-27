@@ -13,7 +13,6 @@ rules:
       origin: analyst
     access:
       - FinanceAgent
-      - MarketResearchAgent
 
   - match: {}
     access:
