@@ -122,3 +122,27 @@ Remove all generated stub and gRPC files:
 ```bash
 make clean
 ```
+
+## Workflow Context and Multi-Threading
+
+Ventis uses Python's thread-local storage (`threading.local`) to transparently propagate request IDs from the `deploy.py` REST endpoint into the `Future` objects spawned by your workflow. This allows the Local Controller to look up policy context for your workflow's requests without cluttering your workflow code.
+
+> [!WARNING]
+> **Multi-threading inside a workflow:** Because the context is tied to the thread, if you manually spawn background threads *inside* your `workflow_fn`, those new threads will **not** inherit the request ID. If you need to spawn threads within a workflow, you must manually propagate the context:
+> 
+> ```python
+> import ventis_context
+> import threading
+> 
+> def my_workflow():
+>     request_id = ventis_context.get_request_id()
+>     
+>     def background_task():
+>         ventis_context.set_request_id(request_id)
+>         # Your stubs/Futures created here will now correctly trace back to the request
+>         
+>     t = threading.Thread(target=background_task)
+>     t.start()
+> ```
+> 
+> **`asyncio` Incompatibility:** Because Ventis tracks requests via `threading.local()`, it is **not compatible** with Python's `asyncio` framework. Concurrent coroutines running on the same thread will blindly overwrite and leak each other's request IDs. Workflows must be written using standard synchronous Python or traditional threading.
