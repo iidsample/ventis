@@ -158,11 +158,16 @@ def cmd_build(args):
                 logger.error("Workflow file not found: %s", workflow_path)
                 continue
 
+            docker_context = os.path.join(project_dir, "docker_container", "Workflow")
             logger.info("Generating workflow Docker context for '%s'", agent_name)
-            generate_workflow_docker(workflow_path, stub_paths)
+            generate_workflow_docker(
+                workflow_path,
+                stub_paths,
+                output_dir=docker_context,
+                grpc_stubs_dir=grpc_stubs_dir,
+            )
 
             image_name = f"ventis-{agent_name.lower()}"
-            docker_context = os.path.join(project_dir, "docker_container", "Workflow")
             logger.info("Building Docker image: %s", image_name)
             subprocess.run(["docker", "build", "-t", image_name, docker_context], check=True)
 
@@ -192,11 +197,16 @@ def cmd_build(args):
                 logger.warning("No YAML definition found for agent '%s', skipping Docker", agent_name)
                 continue
 
+            docker_context = os.path.join(project_dir, "docker_container", agent_name)
             logger.info("Generating Docker context for '%s'", agent_name)
-            generate_docker(matching_yaml, agent_file)
+            generate_docker(
+                matching_yaml,
+                agent_file,
+                output_dir=docker_context,
+                grpc_stubs_dir=grpc_stubs_dir,
+            )
 
             image_name = f"ventis-{agent_name.lower()}"
-            docker_context = os.path.join(project_dir, "docker_container", agent_name)
             logger.info("Building Docker image: %s", image_name)
             subprocess.run(["docker", "build", "-t", image_name, docker_context], check=True)
 
