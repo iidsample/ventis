@@ -251,6 +251,7 @@ class LocalController(object):
                             f"after {timeout}s"
                         )
                     time.sleep(poll_interval)
+                print("Resolved arg '%s' to %s", key, resolved[key])
             else:
                 resolved[key] = value
         return resolved
