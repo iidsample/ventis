@@ -191,8 +191,10 @@ class LocalController(object):
         # Check policy before routing
         if not self._check_policy(service, context):
             err_msg = f"Unauthorized: Policy denied access to service '{service}'"
-            logger.error("Policy denied: service=%s, context=%s", service, context)
-            self._report_error(future_id, origin, err_msg)
+            logger.warning(err_msg)
+            self.redis.hset(f"future:{future_id}", "result", err_msg)
+            if origin and origin != self._my_endpoint:
+                self._send_result_callback(origin, future_id, err_msg)
             return
 
         # Look up the routing table
@@ -237,14 +239,7 @@ class LocalController(object):
                 logger.info("Arg '%s' looks like a Future UUID (%s), waiting for result...", key, value)
                 start = time.time()
                 while True:
-                    hash_data = self.redis.hget_multiple(future_key, ["result", "error"])
-                    error = hash_data.get("error")
-                    if error and error != "":
-                        logger.info("Future %s resolved with error for arg '%s'", value, key)
-                        resolved[key] = error
-                        break
-
-                    result = hash_data.get("result")
+                    result = self.redis.hget(future_key, "result")
                     if result is not None and result != "":
                         logger.info("Future %s resolved for arg '%s'", value, key)
                         resolved[key] = result
@@ -293,7 +288,11 @@ class LocalController(object):
             logger.info("Completed %s.%s (future=%s) -> %s", service, function, future_id, serialized)
         except Exception as e:
             logger.error("Failed to execute %s.%s: %s", service, function, e)
-            self._report_error(future_id, origin, str(e))
+            
+            # Treat script-level crash as a string result to avoid hanging
+            self.redis.hset(f"future:{future_id}", "result", f"Execution failed: {e}")
+            if origin and origin != self._my_endpoint:
+                self._send_result_callback(origin, future_id, f"Execution failed: {e}")
 
     # ------------------------------------------------------------------ #
     #  Request forwarding                                                  #
@@ -331,22 +330,6 @@ class LocalController(object):
             logger.info("Sent result callback to %s for future %s", origin, future_id)
         except Exception as e:
             logger.error("Failed to send result callback to %s: %s", origin, e)
-
-    def _report_error(self, future_id, origin, error_message):
-        """Record an error for a future, sending it back to origin if necessary."""
-        # Write to local Redis
-        self.redis.hset(f"future:{future_id}", "error", error_message)
-        
-        # Also notify origin so it can write to its local Redis
-        if origin and origin != self._my_endpoint:
-            stub = self._get_remote_stub(origin)
-            payload = json.dumps({"future_id": future_id, "error": error_message})
-            request = local_controler_pb2.JsonResponse(resonse=payload)
-            try:
-                stub.WriteResult(request)
-                logger.info("Sent error callback to %s for future %s", origin, future_id)
-            except Exception as e:
-                logger.error("Failed to send error callback to %s: %s", origin, e)
 
     # ------------------------------------------------------------------ #
     #  Shutdown                                                            #
