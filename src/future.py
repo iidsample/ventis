@@ -113,15 +113,8 @@ class Future(object):
         return f"future:{self.id}:consumers"
 
     def _poll_redis(self):
-        """Check Redis for a computed result or error, and cache it locally."""
-        hash_data = self.redis.hget_multiple(self._key(), ["result", "error"])
-        
-        error = hash_data.get("error")
-        if error and error != "":
-            self.result = error
-            return self.result
-
-        result = hash_data.get("result")
+        """Check Redis for a computed result and cache it locally."""
+        result = self.redis.hget(self._key(), "result")
         if result is not None and result != "":
             self.result = result
             
