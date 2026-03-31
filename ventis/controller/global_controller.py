@@ -586,10 +586,14 @@ class GlobalController(object):
                 # Apply resource limits
                 cpu = resources.get("cpu")
                 memory = resources.get("memory")
+                gpu = resources.get("gpu")
                 if cpu:
                     cmd.extend(["--cpus", str(cpu)])
                 if memory:
                     cmd.extend(["--memory", f"{memory}m"])
+                if gpu:
+                    # Provide the specific count or identifier requested (e.g., '1', '2', 'all')
+                    cmd.extend(["--gpus", str(gpu)])
 
                 cmd.append(image)
 

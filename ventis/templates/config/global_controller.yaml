@@ -12,6 +12,17 @@ agents:
       memory: 512
     entrypoint: agents/example_agent.py
 
+  - name: VllmAgent
+    host: localhost
+    port: 8052
+    redis_port: 6379
+    replicas: 1
+    resources:
+      cpu: 2
+      memory: 2048
+      gpu: 1
+    entrypoint: agents/vllm_agent.py
+
   - name: Workflow
     host: localhost
     port: 8050

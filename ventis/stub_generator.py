@@ -262,7 +262,7 @@ def _format_source(source):
     return "\n".join(formatted) + "\n"
 
 
-def generate_docker(yaml_path, agent_file, output_dir=None, grpc_stubs_dir=None):
+def generate_docker(yaml_path, agent_file, output_dir=None, grpc_stubs_dir=None, stub_files=None):
     """
     Generate a minimal Docker build context for an agent.
 
@@ -274,6 +274,7 @@ def generate_docker(yaml_path, agent_file, output_dir=None, grpc_stubs_dir=None)
         agent_file:     Path to the original Python agent implementation.
         output_dir:     Optional output directory (default: docker_container/<AgentName>/).
         grpc_stubs_dir: Optional path to compiled gRPC stubs (default: <repo_root>/grpc_stubs).
+        stub_files:     Optional list of agent stub files to copy into the context.
     """
     with open(yaml_path, "r") as f:
         config = yaml.safe_load(f)
@@ -295,7 +296,7 @@ def generate_docker(yaml_path, agent_file, output_dir=None, grpc_stubs_dir=None)
     with open(os.path.join(output_dir, "requirements.txt"), "w") as f:
         f.write(requirements)
 
-    # ---- Copy source files into the build context ------------------------
+    # Copy general agent files
     files_to_copy = [
         # (source_path, destination_filename)
         (os.path.abspath(agent_file), os.path.basename(agent_file)),
@@ -305,6 +306,13 @@ def generate_docker(yaml_path, agent_file, output_dir=None, grpc_stubs_dir=None)
         (os.path.join(script_dir, "controller", "local_controller_frontend.py"), "local_controller_frontend.py"),
         (os.path.join(project_root, "utils", "redis_client.py"), "redis_client.py"),
     ]
+
+    # Copy provided agent stubs
+    if stub_files:
+        for stub_file in stub_files:
+            files_to_copy.append(
+                (os.path.abspath(stub_file), os.path.basename(stub_file))
+            )
 
     # Copy gRPC generated stubs if they exist
     if os.path.isdir(grpc_stubs_dir):
@@ -521,7 +529,7 @@ if __name__ == "__main__":
     if args.docker:
         if not args.agent_file:
             parser.error("--agent-file is required when using --docker")
-        generate_docker(args.yaml_path, args.agent_file)
+        generate_docker(args.yaml_path, args.agent_file, stub_files=args.stub_files)
 
     # Generate workflow Docker context
     if args.workflow:
