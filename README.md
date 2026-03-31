@@ -15,15 +15,21 @@ Ventis is an agent orchestration framework that generates Future-returning Pytho
 
 ```
 ventis/
-├── config/
-│   └── global_controller.yaml  # Global controller agent config
-├── examples/            # YAML agent definitions & example workflows
+├── examples/            # Example agents, workflows, and configs
+│   ├── config/          # Deployment & policy configurations
+│   │   ├── global_controller.yaml
+│   │   └── policy.yaml
+│   ├── finance_agent.py
 │   ├── finance_agent.yaml
+│   ├── market_agent.py
 │   ├── market_agent.yaml
+│   ├── vllm_agent.py
+│   ├── vllm_agent.yaml
 │   └── workflow.py
-├── src/
+├── ventis/              # Core framework source code
 │   ├── stub_generator.py   # Generates Python stubs from YAML
 │   ├── future.py            # Future object with Redis-backed state
+│   ├── cli.py               # Ventis CLI implementation
 │   └── controller/
 │       ├── local_controller.py           # Local controller daemon
 │       ├── local_controller_frontend.py  # gRPC servicer
@@ -33,6 +39,7 @@ ventis/
 ├── grpc_stubs/          # Generated gRPC protobuf files (output)
 ├── utils/
 │   └── redis_client.py  # Redis utility wrapper
+├── tests/               # Integration & performance tests
 └── Makefile
 ```
 
@@ -50,8 +57,8 @@ make stubs
 
 This runs:
 ```bash
-python src/stub_generator.py ./examples/finance_agent.yaml -o ./stubs/finance_agent_stub.py
-python src/stub_generator.py ./examples/market_agent.yaml  -o ./stubs/market_agent_stub.py
+python ventis/stub_generator.py ./examples/finance_agent.yaml -o ./stubs/finance_agent_stub.py
+python ventis/stub_generator.py ./examples/market_agent.yaml  -o ./stubs/market_agent_stub.py
 ```
 
 You can also generate a single stub manually:
@@ -89,17 +96,16 @@ By default it listens on `localhost:6379`. To run it in the background:
 redis-server --daemonize yes
 ```
 
-### Run the Global Controller
-
-The global controller is a daemon that maintains a routing table in Redis for all registered agents. It reads from `config/global_controller.yaml`:
+The global controller is a daemon that maintains a routing table in Redis for all registered agents. It reads from a deployment configuration:
 
 ```bash
-python src/controller/global_controller.py
+python ventis/controller/global_controller.py -c examples/config/global_controller.yaml
 ```
 
-To use a custom config:
+To use the Ventis CLI instead (recommended):
+
 ```bash
-python src/controller/global_controller.py -c path/to/config.yaml
+ventis deploy -c examples/config/global_controller.yaml
 ```
 
 You can verify the routing table was written:
