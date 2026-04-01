@@ -14,7 +14,7 @@ agents:
       cpu: 1          # Number of CPU cores
       memory: 512     # Memory in MB
     # Path to the agent entrypoint script
-    entrypoint: examples/finance_agent.py
+    entrypoint: agents/finance_agent.py
 
   - name: MarketResearchAgent
     host: localhost
@@ -25,7 +25,17 @@ agents:
     resources:
       cpu: 1
       memory: 512
-    entrypoint: examples/market_agent.py
+    entrypoint: agents/market_agent.py
+
+  - name: VllmAgent
+    host: localhost
+    port: 8053
+    redis_port: 6379
+    replicas: 1
+    resources:
+      cpu: 2
+      memory: 2048
+    entrypoint: agents/vllm_agent.py
 
   - name: Workflow
     host: localhost
@@ -34,7 +44,7 @@ agents:
     api_port: 8080         # Flask REST API port (exposed to host)
     redis_port: 6379
     replicas: 1
-    workflow_file: examples/workflow.py
+    workflow_file: workflows/example_workflow.py
 
 # Polling interval in seconds
 poll_interval: 5
