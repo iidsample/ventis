@@ -167,6 +167,8 @@ class Future(object):
             return
         for endpoint in consumers:
             try:
+                if not self.result:
+                    logger.warning("Future %s is notifying consumer %s with an empty/None result", self.id, endpoint)
                 channel = grpc.insecure_channel(endpoint)
                 stub = local_controler_pb2_grpc.LocalControllerStub(channel)
                 payload = json.dumps({"future_id": self.id, "result": self.result})

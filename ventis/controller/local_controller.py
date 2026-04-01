@@ -338,6 +338,9 @@ class LocalController(object):
 
     def _send_result_callback(self, origin, future_id, result):
         """Send a result back to the originating controller via WriteResult RPC."""
+        if not result:
+            logger.warning("Agent '%s' is sending an empty/None result for future %s to origin %s", self.agent_name, future_id, origin)
+
         stub = self._get_remote_stub(origin)
         payload = json.dumps({"future_id": future_id, "result": result})
         logger.info("Payload: Future %s,Sent %s ", future_id, payload)
