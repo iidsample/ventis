@@ -60,7 +60,7 @@ class LocalControllerServicer(local_controler_pb2_grpc.LocalControllerServicer):
                     logger.info("WriteResult: wrote error for future %s", future_id)
                 if result is not None:
                     self.redis.hset(f"future:{future_id}", "result", result)
-                    logger.info("WriteResult: wrote result for future %s", future_id)
+                    logger.info("WriteResult: wrote result for future %s, result %s", future_id, result)
             else:
                 logger.error("WriteResult: missing future_id in %s", data)
         except Exception as e:
