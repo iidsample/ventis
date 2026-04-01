@@ -329,7 +329,8 @@ class LocalController(object):
         request = local_controler_pb2.JsonResponse(resonse=payload)
         try:
             stub.WriteResult(request)
-            logger.info("Sent result callback to %s for future %s", origin, future_id)
+            logger.info("Sent result callback to %s for future %s, result %s", origin, future_id, result)
+
         except Exception as e:
             logger.error("Failed to send result callback to %s: %s", origin, e)
 
