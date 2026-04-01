@@ -53,7 +53,11 @@ class LocalControllerServicer(local_controler_pb2_grpc.LocalControllerServicer):
             future_id = data.get("future_id")
             result = data.get("result")
             error = data.get("error")
+            
             logger.info(f"WriteResult: received result for future {future_id}: {result}")
+            if not result:
+                logger.warning(f"WriteResult received empty/None result for future {future_id} from {context.peer()}")
+                
             if future_id:
                 if error is not None:
                     self.redis.hset(f"future:{future_id}", "error", error)
