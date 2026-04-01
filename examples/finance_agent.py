@@ -24,9 +24,9 @@ class FinanceAgent(object):
         
         # Call the VLLM agent remotely and wait for the result
         # .value() blocks until the future completes via Redis
-        response = self.vllm.generate(prompt)
+        response = self.vllm.generate(prompt).value()
         # print(response.value())
-        return response.value()
+        return response
 
 if __name__ == "__main__":
     agent = FinanceAgent()
