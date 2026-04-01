@@ -326,6 +326,7 @@ class LocalController(object):
         """Send a result back to the originating controller via WriteResult RPC."""
         stub = self._get_remote_stub(origin)
         payload = json.dumps({"future_id": future_id, "result": result})
+        logger.info("Payload:Sent %s ", payload)
         request = local_controler_pb2.JsonResponse(resonse=payload)
         try:
             stub.WriteResult(request)
