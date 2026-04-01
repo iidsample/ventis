@@ -15,10 +15,10 @@ class FinanceAgent(object):
         return val
 
     def run(self, query: str) -> str:
-        company = self.get_company_name(query)
-        price = self.get_stock_price(company)
+        # company = self.get_company_name(query)
+        # price = self.get_stock_price(company)
         
-        prompt = f"The user asked: '{query}'. The company is {company} and the stock price is ${price}. Please write a short, professional response."
+        prompt = f"The company is {query} and the stock price is . Please write a short, professional response."
         
         # Call the VLLM agent remotely and wait for the result
         # .value() blocks until the future completes via Redis
