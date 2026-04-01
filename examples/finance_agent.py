@@ -11,7 +11,8 @@ class FinanceAgent(object):
 
     def get_company_name(self, ticker: str) -> str:
         """Get the company name for a given ticker."""
-        return "Apple"
+        val = self.run(ticker)
+        return val
 
     def run(self, query: str) -> str:
         company = self.get_company_name(query)
