@@ -239,7 +239,7 @@ class LocalController(object):
                 logger.info("Arg '%s' looks like a Future UUID (%s), waiting for result...", key, value)
                 start = time.time()
                 while True:
-                    print("Waiting for result for future next iteration %s", value)
+                    # print("Waiting for result for future next iteration %s", value)
                     result = self.redis.hget(future_key, "result")
                     if result is not None and result != "":
                         logger.info("Future %s resolved for arg '%s'", value, key)
