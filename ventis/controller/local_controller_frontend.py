@@ -18,7 +18,7 @@ import sys
 import os
 
 # Add grpc_stubs to the path so generated protobuf modules are importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "grpc_stubs"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "grpc_stubs"))
 
 import local_controler_pb2
 import local_controler_pb2_grpc

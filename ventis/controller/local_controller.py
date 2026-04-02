@@ -16,9 +16,9 @@ from local_controller_frontend import start_server
 from redis_client import RedisClient
 
 # Add grpc_stubs directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "grpc_stubs"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "grpc_stubs"))
 # Add ventis main directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import ventis_context
 import local_controler_pb2
