@@ -87,11 +87,12 @@ make clean
 
 ### Harnessing the power of Ventis
 * Beyond an easy programming model and end-to-end deployment. Ventis, enables developers to write custom policies to perform fine-grained control over their agents, workflows. 
+Currently, we support two types of policies, with plans to add more in the future. 
 
-* For example, we define a simple authorization policy based in examples/config/policy.yaml, where people deploying workflows can define authorization rules based on request origins. 
+* **Authorization Policies**: Define rules based on the fields in the request to restrict agent access. For example, `examples/config/policy.yaml` defines rules to restrict access to the `FinanceAgent` to only authorized callers like 'CEO' or 'Analyst'. A developer can specify rules based on the fields in the request to restrict agent access.
 
 
-### Enabling efficiency using Ventis
+* **Load Balancing & Efficiency**: Ventis has built-in policies to perform load-balancing across multiple instances of the same agent. Request migrations ease head-of-line blocking, and our experiments show that Ventis's performance control can reduce tail latencies and enable efficient GPU utilization.
 
 * Ventis has built-in policies to perform load-balancing across multiple instances of the same agent. Request migrations ease head-of-line blocking, and our experiments show that Ventis's performance control can reduce tail latencies and enable efficient GPU utilization. Here is an example of the results:
 
