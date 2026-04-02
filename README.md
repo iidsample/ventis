@@ -1,6 +1,6 @@
 # Ventis
 
-Ventis is a lightweight agent programming framework designed for distributed workflows using gRPC and Redis.
+Ventis is a lightweight end-to-end agent programming framework for building agentic workflows and controlling their execution. 
 
 ## Core Features
 - **Easy development and deployment**: Developers write agents in python as if writing single node local code. Ventis takes care of deployment and management of agents and workflows. Deployment engineers running this workflow can specify orchestration, authorization and other serving policies, Ventis will enforce them.     
