@@ -5,7 +5,7 @@ Ventis is a lightweight agent orchestration framework designed for distributed w
 ## Core Features
 - **Easy development and deployment**: Developers write agents in python as if writing single node local code. Ventis takes care of deployment and management of agents and workflows. Deployment engineers running this workflow can specify orchestration, authorization and other serving policies, Ventis will enforce them.     
 - **Distributed Futures**: Asynchronous execution without any user workflow modification.
-- **Docker-Managed Infrastructure**: Automatic launching of agent and Redis containers locally or via SSH.
+- **Pluggable Policy Engine**: Supports multiple policies for orchestration, authorization and other serving policies.
 
 ---
 
