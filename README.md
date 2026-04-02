@@ -22,19 +22,19 @@ pip install -e .
 ### 2. Prerequisites
 
 - **Python 3.10+**
-- **Docker** — Used to manage agents and Redis instances.
+- **Docker** — Used to manage agents.
 
 ---
 
 ## Development Guide 
 
-### Step 1: Create a Project
+#### Step 1: Create a Project
 ```bash
 ventis new-project my-app
 cd my-app
 ```
 
-### Step 2: Define Your Agents
+#### Step 2: Define Your Agents
 Place your agent logic (`.py`) and definitions (`.yaml`) in the `agents/` directory.
 
 - **`agents/my_agent.yaml`**: Defines methods and schemas.
@@ -46,25 +46,25 @@ We have provided an example of a finance agent and a market research agent in th
 cp -r ../examples/* ./
 ```
 
-### Deployment Guide
+## Deployment Guide
 
-### Step 1: Configure the Global Controller
+#### Step 1: Configure the Global Controller
 Edit `examples/config/global_controller.yaml` to list the agents you want to deploy, their hosts, ports, and resource limits.
 
-### Step 2: Build the project
+#### Step 2: Build the project
 ```bash
 ventis build
 ```
-### Step 2.1 (Only if performing distributed deployment):
+#### Step 2.1 (Only if performing distributed deployment):
 If you are deploying agents and tools to multiple hosts, you need to make sure that the hosts are reachable from the machine where you are running the deploy command. To enable this please ensure that you have passwordless ssh access to the hosts. A guide to enable passwordless ssh access can be found [here](https://www.redhat.com/en/blog/passwordless-ssh).
 
 
-### Step 3: Deploy the project
+#### Step 3: Deploy the project
 ```bash
 ventis deploy
 ```
 
-### Step 4: Sending requests to the workflow
+#### Step 4: Sending requests to the workflow
 
 Upon running the deploy command, ventis automatically generates a REST API endpoint for the workflow. 
 Users can send requests to this endpoint to trigger the workflow. For this example, workflow to send a request - 
@@ -92,9 +92,7 @@ Currently, we support two types of policies, with plans to add more in the futur
 * **Authorization Policies**: Define rules based on the fields in the request to restrict agent access. For example, `examples/config/policy.yaml` defines rules to restrict access to the `FinanceAgent` to only authorized callers like 'CEO' or 'Analyst'. A developer can specify rules based on the fields in the request to restrict agent access.
 
 
-* **Load Balancing & Efficiency**: Ventis has built-in policies to perform load-balancing across multiple instances of the same agent. Request migrations ease head-of-line blocking, and our experiments show that Ventis's performance control can reduce tail latencies and enable efficient GPU utilization.
-
-* Ventis has built-in policies to perform load-balancing across multiple instances of the same agent. Request migrations ease head-of-line blocking, and our experiments show that Ventis's performance control can reduce tail latencies and enable efficient GPU utilization. Here is an example of the results:
+* **Load Balancing & Efficiency**: Ventis has built-in policies to perform load-balancing across multiple instances of the same agent. Request migrations ease head-of-line blocking, and our experiments show that Ventis's performance control can reduce tail latencies and enable efficient GPU utilization. Here is an example of the results:
 
 ![Financial Analyst Results](images/financial_analyst_results_page.jpg)
 
