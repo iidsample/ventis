@@ -460,9 +460,7 @@ class GlobalController(object):
             for ctrl in self.controllers:
                 host = ctrl.get("host", "localhost")
                 port = ctrl.get("port", 50051)
-                # Use host.docker.internal so the GC (running on host) can reach containers
-                lc_host = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
-                endpoint = f"{lc_host}:{port}"
+                endpoint = f"{host}:{port}"
                 try:
                     stub = self._get_lc_stub(endpoint)
                     payload = json.dumps({"request_id": request_id})
