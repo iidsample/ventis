@@ -228,7 +228,7 @@ class LocalController(object):
                         # If the result is already available, push it immediately.
                         # This handles the race where _notify_consumers already ran.
                         existing_result = self.redis.hget(future_key, "result")
-                        if existing_result is not None:
+                        if existing_result is not None and existing_result != "":
                             logger.info("Future %s already resolved, pushing value %s to %s", value, existing_result, endpoint)
                             self._send_result_callback(endpoint, value, existing_result)
 
