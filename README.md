@@ -86,7 +86,7 @@ make clean
 ```
 
 ### Harnessing the power of Ventis
-* Beyond an easy programming model and end-to-end deployment. Ventis, enables developers to write custom policies to perform fine-grained control over their agents, workflows. 
+Beyond an easy programming model and end-to-end deployment. Ventis, enables developers to write custom policies to perform fine-grained control over their agents, workflows. 
 Currently, we support two types of policies, with plans to add more in the future. 
 
 * **Authorization Policies**: Define rules based on the fields in the request to restrict agent access. For example, `examples/config/policy.yaml` defines rules to restrict access to the `FinanceAgent` to only authorized callers like 'CEO' or 'Analyst'. A developer can specify rules based on the fields in the request to restrict agent access.
