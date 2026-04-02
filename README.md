@@ -99,15 +99,12 @@ Currently, we support two types of policies, with plans to add more in the futur
 For more details, please refer to our paper - [Nalar: An agent serving framework](https://arxiv.org/abs/2601.05109)
 
 
-
-
 ## Future Work
 - **Dynamic Policy Updates**: Currently, policies are loaded as static yaml files at startup. We are actively working on adding mechanisms to dynamically update policies based on custom user code. Allowing developer for more flexible and dynamic policy management.
 
 - **Agent Thread Safety**: The Local Controller now executes agent methods in a `ThreadPoolExecutor`. This means multiple requests can run concurrently on the same agent instance. Currently, agents are assumed to be stateless or thread-safe. If an agent has mutable shared state, concurrent calls could cause data corruption. Future improvements could include per-thread agent instances, a locking mechanism, or a configurable concurrency mode (e.g., serial vs. parallel execution per agent).
 
-- **Stale Future Detection**: If an agent process crashes mid-execution, a Future's result may never be written to Redis, causing consumers to poll indefinitely. A TTL-based expiration or heartbeat mechanism could detect and clean up stale futures.
-
+- **Stale Future Detection**: If an agent process crashes mid-execution, a Future's result may never be available, causing indefinite waiting for the result.We currently  have a time-out based mechanism, in future we will add customizable retry policies. 
 
 
 ### Citation
