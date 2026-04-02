@@ -25,6 +25,9 @@ import local_controler_pb2
 import local_controler_pb2_grpc
 import grpc
 
+print(f"DEBUG: Loading gRPC stubs from: {local_controler_pb2_grpc.__file__}")
+print(f"DEBUG: LocalControllerStub attributes: {[a for a in dir(local_controler_pb2_grpc.LocalControllerStub) if not a.startswith('_')]}")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
