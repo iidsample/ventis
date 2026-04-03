@@ -669,7 +669,6 @@ class GlobalController(object):
 
                 cmd = [
                     "docker", "run", "-d", "-it",
-                    "--rm",
                     "--add-host=host.docker.internal:host-gateway",
                     "--name", container_name,
                     "-p", f"{port}:50051",
