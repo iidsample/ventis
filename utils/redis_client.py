@@ -63,3 +63,16 @@ class RedisClient(object):
     def smembers(self, name):
         """Get all members of a set."""
         return {v.decode("utf-8") for v in self.client.smembers(name)}
+
+    # --- Scan operations ---
+
+    def scan_keys(self, pattern):
+        """Scan for keys matching a glob pattern. Returns a list of matching key strings."""
+        keys = []
+        cursor = 0
+        while True:
+            cursor, batch = self.client.scan(cursor, match=pattern, count=100)
+            keys.extend(k.decode("utf-8") for k in batch)
+            if cursor == 0:
+                break
+        return keys

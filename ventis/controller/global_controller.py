@@ -43,7 +43,8 @@ class GlobalController(object):
     Designed to be subclassed — override the _on_* hooks to extend behavior.
     """
 
-    ROUTING_TABLE_KEY = "routing_table"
+    ROUTING_ENDPOINTS_KEY = "routing_table:endpoints"
+    ROUTING_STATEFUL_KEY = "routing_table:stateful"
     SERVICES_SET_KEY = "routing_table:services"
     POLICY_RULES_KEY = "policy:rules"
 
@@ -146,35 +147,83 @@ class GlobalController(object):
     #  Routing table                                                      #
     # ------------------------------------------------------------------ #
 
+    @staticmethod
+    def _get_replica_placements(ctrl):
+        """Normalize the ``replicas`` field into a list of (host, port) tuples.
+
+        Supports two formats in the YAML config:
+
+        1. **Integer shorthand** — ``replicas: 3``
+           Uses the agent's ``host`` and sequential ports starting at ``port``.
+
+        2. **Explicit list** — each entry specifies its own ``host`` and ``port``:
+           ::
+
+               replicas:
+                 - host: node1
+                   port: 8051
+                 - host: node2
+                   port: 8052
+        """
+        replicas = ctrl.get("replicas", 1)
+        default_host = ctrl.get("host", "localhost")
+        base_port = ctrl.get("port", 50051)
+
+        if isinstance(replicas, int):
+            return [(default_host, base_port + i) for i in range(replicas)]
+        elif isinstance(replicas, list):
+            return [
+                (r.get("host", default_host), r.get("port", base_port))
+                for r in replicas
+            ]
+        else:
+            return [(default_host, base_port)]
+
     def _build_routing_table(self):
-        """Write the routing table to Redis on every node."""
-        table = {}
+        """Write the routing table to Redis on every node.
+
+        For each agent, stores a JSON list of all replica endpoints under
+        ``routing_table:endpoints``.  Agents marked ``stateful: true`` are
+        recorded in ``routing_table:stateful`` so local controllers can
+        enforce session affinity.
+        """
+        endpoints_table = {}   # name → JSON list of endpoints
+        stateful_table = {}    # name → "true" (only for stateful agents)
+
         for ctrl in self.controllers:
             name = ctrl["name"]
-            host = ctrl.get("host", "localhost")
-            port = ctrl.get("port", 50051)
-            # Use host.docker.internal for localhost so Docker containers
-            # can reach each other through the host's port mappings.
-            rt_host = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
-            endpoint = f"{rt_host}:{port}"
-            table[name] = endpoint
+            stateful = ctrl.get("stateful", False)
+            placements = self._get_replica_placements(ctrl)
+
+            endpoints = []
+            for host, port in placements:
+                # Use host.docker.internal for localhost so Docker containers
+                # can reach each other through the host's port mappings.
+                rt_host = "host.docker.internal" if host in ("localhost", "127.0.0.1") else host
+                endpoints.append(f"{rt_host}:{port}")
+
+            endpoints_table[name] = json.dumps(endpoints)
+            if stateful:
+                stateful_table[name] = "true"
 
         # Write to every node's Redis so each local controller can look up
         # the full routing table from its own Redis instance.
         targets = list(self.node_redis.values()) if self.node_redis else [self.redis]
         for redis_client in targets:
-            if table:
-                redis_client.hset_multiple(self.ROUTING_TABLE_KEY, table)
+            if endpoints_table:
+                redis_client.hset_multiple(self.ROUTING_ENDPOINTS_KEY, endpoints_table)
+            if stateful_table:
+                redis_client.hset_multiple(self.ROUTING_STATEFUL_KEY, stateful_table)
 
             existing = redis_client.smembers(self.SERVICES_SET_KEY)
-            for stale in existing - set(table.keys()):
+            for stale in existing - set(endpoints_table.keys()):
                 redis_client.srem(self.SERVICES_SET_KEY, stale)
-            for name in table.keys():
+            for name in endpoints_table.keys():
                 redis_client.sadd(self.SERVICES_SET_KEY, name)
 
         logger.info("Routing table written to %d Redis instance(s): %s",
-                     len(targets), table)
-        self._on_routing_table_updated(table)
+                     len(targets), endpoints_table)
+        self._on_routing_table_updated(endpoints_table)
 
     def _write_resource_specs(self):
         """Write the per-agent resource specs to Redis."""
@@ -607,18 +656,16 @@ class GlobalController(object):
         """
         for ctrl in self.controllers:
             name = ctrl["name"]
-            host = ctrl.get("host", "localhost")
+            default_host = ctrl.get("host", "localhost")
             user = ctrl.get("user")
-            base_port = ctrl.get("port", 50051)
-            replicas = ctrl.get("replicas", 1)
             resources = ctrl.get("resources", {})
             ctrl_type = ctrl.get("type", "agent")
+            placements = self._get_replica_placements(ctrl)
 
             image = f"ventis-{name.lower()}"
             self.containers[name] = []
 
-            for i in range(replicas):
-                port = base_port + i
+            for i, (host, port) in enumerate(placements):
                 container_name = f"ventis-{name.lower()}-{i}"
 
                 # Containers can't reach host's Redis via "localhost";
@@ -657,7 +704,9 @@ class GlobalController(object):
                 cmd.append(image)
 
                 try:
-                    result = self._run_cmd(cmd, host, user)
+                    # It's okay for now let's assume the user is same for all
+                    replica_user = user  # TODO: per-replica user support
+                    result = self._run_cmd(cmd, host, replica_user)
                     if result.returncode == 0:
                         container_id = result.stdout.strip()[:12]
                         self.containers[name].append(container_name)

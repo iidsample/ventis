@@ -109,6 +109,12 @@ class LocalControllerServicer(local_controler_pb2_grpc.LocalControllerServicer):
                 ])
             self.redis.delete(*keys_to_delete)
             logger.info("Cleaned up %d future(s) for request %s", len(future_ids), request_id)
+
+            # Clean up affinity bindings for this request
+            affinity_keys = self.redis.scan_keys(f"affinity:{request_id}:*")
+            if affinity_keys:
+                self.redis.delete(*affinity_keys)
+                logger.info("Cleaned up %d affinity binding(s) for request %s", len(affinity_keys), request_id)
         finally:
             # Always release the lock, even if cleanup partially failed
             self.redis.delete(lock_key)

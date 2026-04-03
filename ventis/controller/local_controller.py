@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import random
 import sys
 import time
 import importlib.util
@@ -27,7 +28,8 @@ import local_controler_pb2_grpc
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-ROUTING_TABLE_KEY = "routing_table"
+ROUTING_ENDPOINTS_KEY = "routing_table:endpoints"
+ROUTING_STATEFUL_KEY = "routing_table:stateful"
 POLICY_RULES_KEY = "policy:rules"
 
 
@@ -151,6 +153,50 @@ class LocalController(object):
         return False
 
     # ------------------------------------------------------------------ #
+    #  Endpoint resolution (affinity / load balancing)                      #
+    # ------------------------------------------------------------------ #
+
+    def _resolve_endpoint(self, service, request_id):
+        """Pick the correct endpoint for a service.
+
+        - **Stateful agents**: check for an existing affinity binding in
+          Redis (``affinity:<request_id>:<service>``).  If none exists,
+          pick a random replica and persist the binding so all subsequent
+          calls within the same request land on the same instance.
+        - **Stateless agents**: pick a random replica from the endpoint
+          list on every call.
+
+        Returns:
+            The chosen endpoint string, or ``None`` if the service is not
+            in the routing table.
+        """
+        endpoints_json = self.redis.hget(ROUTING_ENDPOINTS_KEY, service)
+        if not endpoints_json:
+            return None
+
+        endpoints = json.loads(endpoints_json)
+        if not endpoints:
+            return None
+
+        # Check if this agent is stateful
+        is_stateful = self.redis.hget(ROUTING_STATEFUL_KEY, service) == "true"
+
+        if is_stateful and request_id:
+            affinity_key = f"affinity:{request_id}:{service}"
+            existing = self.redis.get(affinity_key)
+            if existing:
+                logger.debug("Affinity hit: %s -> %s (request %s)", service, existing, request_id)
+                return existing
+            # No existing binding — pick randomly and persist
+            chosen = random.choice(endpoints)
+            self.redis.set(affinity_key, chosen)
+            logger.info("Affinity set: %s -> %s (request %s)", service, chosen, request_id)
+            return chosen
+        else:
+            # Stateless: pick randomly
+            return random.choice(endpoints)
+
+    # ------------------------------------------------------------------ #
     #  Request processing                                                  #
     # ------------------------------------------------------------------ #
 
@@ -206,8 +252,8 @@ class LocalController(object):
                 self._send_result_callback(origin, future_id, err_msg)
             return
 
-        # Look up the routing table
-        endpoint = self.redis.hget(ROUTING_TABLE_KEY, service)
+        # Resolve which endpoint to route to
+        endpoint = self._resolve_endpoint(service, request_id)
         if not endpoint:
             logger.error("No endpoint found for service '%s' in routing table.", service)
             return

@@ -3,16 +3,25 @@
 
 agents:
   - name: FinanceAgent
-    host: localhost
-    port: 8051
-    redis_port: 6379   # Redis port on this node
-    # user: sagarwal  # SSH user for remote hosts (omit for localhost)
-    # Number of instances to launch
-    replicas: 1
+    # Replicas can be placed on different hosts with explicit host/port.
+    # Alternatively, use `replicas: 3` as shorthand to launch 3 instances
+    # on the same host with sequential ports starting from `port`.
+    replicas:
+      - host: localhost
+        port: 8051
+      - host: localhost
+        port: 8052
+      - host: localhost
+        port: 8053
+    redis_port: 6379    # Redis port on this node
+    # user: sagarwal   # SSH user for remote hosts (omit for localhost)
+    # Stateful agents get session affinity: all calls within a single
+    # request_id are routed to the same instance.
+    stateful: true
     # Resource limits per instance
     resources:
-      cpu: 1          # Number of CPU cores
-      memory: 512     # Memory in MB
+      cpu: 1            # Number of CPU cores
+      memory: 512       # Memory in MB
     # Path to the agent entrypoint script
     entrypoint: agents/finance_agent.py
 
