@@ -50,7 +50,7 @@ This command creates a new directory `my-app` with the following structure:
 ├── grpc_stubs/           # Generated gRPC stubs (auto-generated)
 └── README.md             # Readme for the project  
 ```
-Readme.md provides a quick overview of the project and how to use it. Including how to add new files etc. 
+The Readme in the newly created project directory provides a quick overview of the project and how to use it. Including how to add new files etc. We provide some overview in next few steps.
 
 
 #### Step 2: Define Your Agents
