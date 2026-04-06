@@ -89,30 +89,27 @@ class GlobalController(object):
         """Remove any containers from previous runs before launching new ones."""
         logger.info("Checking for stale containers from previous runs...")
 
-        # Collect all expected container names
-        stale_names = []
+        # Collect all expected container names and the hosts they run on
+        # { host: (user, [container_names]) }
+        host_containers = {}
 
-        # Redis container names
-        seen_hosts = set()
         for ctrl in self.controllers:
-            host = ctrl.get("host", "localhost")
-            if host not in seen_hosts:
-                seen_hosts.add(host)
-                stale_names.append(f"ventis-redis-{host.replace('.', '-')}")
-
-        # Agent container names
-        for ctrl in self.controllers:
-            name = ctrl["name"]
-            placements = self._get_replica_placements(ctrl)
-            for i in range(len(placements)):
-                stale_names.append(f"ventis-{name.lower()}-{i}")
-
-        # Try to remove each one (docker rm -f ignores non-existent containers)
-        for ctrl in self.controllers:
-            host = ctrl.get("host", "localhost")
             user = ctrl.get("user")
+            placements = self._get_replica_placements(ctrl)
+            name = ctrl["name"]
 
-            for container_name in stale_names:
+            for i, (host, port) in enumerate(placements):
+                if host not in host_containers:
+                    host_containers[host] = (user, set())
+
+                # Redis container for this host
+                host_containers[host][1].add(f"ventis-redis-{host.replace('.', '-')}")
+                # Agent container
+                host_containers[host][1].add(f"ventis-{name.lower()}-{i}")
+
+        # Try to remove each one on its respective host
+        for host, (user, container_names) in host_containers.items():
+            for container_name in container_names:
                 try:
                     self._run_cmd(
                         ["docker", "rm", "-f", container_name], host, user
@@ -286,15 +283,17 @@ class GlobalController(object):
         redis:alpine container per host. Creates a RedisClient instance
         for each node so the global controller can query any node's Redis.
         """
-        # Collect unique nodes
+        # Collect unique nodes from all replica placements
         nodes = {}
         for ctrl in self.controllers:
-            host = ctrl.get("host", "localhost")
-            if host not in nodes:
-                nodes[host] = {
-                    "user": ctrl.get("user"),
-                    "redis_port": ctrl.get("redis_port", 6379),
-                }
+            user = ctrl.get("user")
+            redis_port = ctrl.get("redis_port", 6379)
+            for host, _port in self._get_replica_placements(ctrl):
+                if host not in nodes:
+                    nodes[host] = {
+                        "user": user,
+                        "redis_port": redis_port,
+                    }
 
         for host, node_cfg in nodes.items():
             redis_port = node_cfg["redis_port"]
