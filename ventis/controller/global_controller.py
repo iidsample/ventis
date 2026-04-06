@@ -66,6 +66,12 @@ class GlobalController(object):
         self.node_redis = {}  # host -> RedisClient
         self._last_status = {}  # (host, port) -> last known status
         self._lc_stubs = {}    # endpoint -> gRPC stub
+        self._shipped_images = set()  # (image, host) already shipped this session
+
+        # Registry config: if set, use push/pull; otherwise fall back to SSH pipe
+        registry_cfg = self.config.get("registry", {})
+        self.registry_url = registry_cfg.get("url")  # e.g. "myregistry.example.com:5000"
+        self.registry_user = registry_cfg.get("user")
 
         # Clean up any stale containers from previous runs
         self._cleanup_stale_containers()
@@ -637,6 +643,92 @@ class GlobalController(object):
                 capture_output=True, text=True,
             )
 
+    def _ensure_image_on_host(self, image, host, user):
+        """
+        Ensure `image` is available on `host` before running a container.
+
+        Strategy:
+        - If a registry is configured: tag + push to registry, then pull on
+          the remote host via SSH.
+        - Fallback (no registry): stream the image over SSH using
+          ``docker save | ssh ... docker load``.
+
+        Images are only shipped once per (image, host) pair per session.
+        Does nothing for localhost.
+        """
+        if host in ("localhost", "127.0.0.1"):
+            return  # already on the local Docker engine
+
+        if (image, host) in self._shipped_images:
+            logger.debug("Image %s already shipped to %s this session, skipping.", image, host)
+            return
+
+        if self.registry_url:
+            self._ship_image_registry(image, host, user)
+        else:
+            self._ship_image_ssh(image, host, user)
+
+        self._shipped_images.add((image, host))
+
+    def _ship_image_registry(self, image, host, user):
+        """
+        Push image to the configured registry on the local host, then
+        instruct the remote host to pull it.
+        """
+        remote_tag = f"{self.registry_url}/{image}:latest"
+        logger.info("Tagging %s -> %s for registry push...", image, remote_tag)
+        subprocess.run(["docker", "tag", image, remote_tag], check=True)
+
+        logger.info("Pushing %s to registry %s...", image, self.registry_url)
+        subprocess.run(["docker", "push", remote_tag], check=True)
+
+        logger.info("Pulling %s on %s from registry...", image, host)
+        result = self._run_cmd(["docker", "pull", remote_tag], host, user)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to pull {remote_tag} on {host}: {result.stderr.strip()}"
+            )
+
+        # Retag to the expected short name on the remote so container launch works
+        retag_result = self._run_cmd(
+            ["docker", "tag", remote_tag, f"{image}:latest"],
+            host, user,
+        )
+        if retag_result.returncode != 0:
+            logger.warning("Failed to retag %s on %s: %s", remote_tag, host, retag_result.stderr.strip())
+
+        logger.info("Image %s is ready on %s (via registry).", image, host)
+
+    def _ship_image_ssh(self, image, host, user):
+        """
+        Stream image to remote host using `docker save | ssh docker load`.
+        Used as a fallback when no registry is configured.
+        """
+        ssh_target = f"{user}@{host}" if user else host
+        logger.info(
+            "Shipping image %s to %s via SSH pipe (no registry configured)...",
+            image, host,
+        )
+        save_proc = subprocess.Popen(
+            ["docker", "save", image],
+            stdout=subprocess.PIPE,
+        )
+        load_proc = subprocess.Popen(
+            ["ssh", ssh_target, "docker load"],
+            stdin=save_proc.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        save_proc.stdout.close()
+        _, stderr = load_proc.communicate()
+        save_proc.wait()
+
+        if load_proc.returncode != 0:
+            raise RuntimeError(
+                f"Failed to ship image {image} to {host} via SSH: {stderr.decode().strip()}"
+            )
+        logger.info("Image %s shipped to %s successfully.", image, host)
+
     def launch_docker_agents(self):
         """
         Launch all agents as Docker containers.
@@ -697,8 +789,9 @@ class GlobalController(object):
                 cmd.append(image)
 
                 try:
-                    # It's okay for now let's assume the user is same for all
+                    # Ensure the image exists on the target host before launching
                     replica_user = user  # TODO: per-replica user support
+                    self._ensure_image_on_host(image, host, replica_user)
                     result = self._run_cmd(cmd, host, replica_user)
                     if result.returncode == 0:
                         container_id = result.stdout.strip()[:12]

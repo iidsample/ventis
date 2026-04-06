@@ -61,3 +61,12 @@ redis:
   host: localhost
   port: 6379
   db: 0
+
+# Docker image registry (optional).
+# If set, `ventis deploy` will push images to this registry locally and
+# pull them on remote nodes before starting containers.
+# If omitted, images are shipped to remote nodes via `docker save | ssh ... docker load`.
+#
+# registry:
+#   url: myregistry.example.com:5000   # Registry host:port
+#   user: sagarwal                     # (optional) SSH user used when pulling on remote nodes
