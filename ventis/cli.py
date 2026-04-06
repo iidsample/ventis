@@ -257,6 +257,34 @@ def cmd_deploy(args):
 
 
 # ------------------------------------------------------------------ #
+#  ventis clean                                                        #
+# ------------------------------------------------------------------ #
+
+def cmd_clean(args):
+    """
+    Remove generated stubs, gRPC files, and Docker build contexts.
+    """
+    project_dir = os.getcwd()
+
+    paths_to_clean = [
+        os.path.join(project_dir, "stubs"),
+        os.path.join(project_dir, "grpc_stubs"),
+        os.path.join(project_dir, "docker_container"),
+    ]
+
+    for path in paths_to_clean:
+        if os.path.exists(path):
+            logger.info("Cleaning %s...", path)
+            if os.path.isdir(path):
+                import shutil
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+
+    logger.info("Clean complete.")
+
+
+# ------------------------------------------------------------------ #
 #  Main entry point                                                    #
 # ------------------------------------------------------------------ #
 
@@ -298,6 +326,13 @@ def main():
         help="Path to global controller config (default: config/global_controller.yaml)",
     )
     deploy.set_defaults(func=cmd_deploy)
+
+    # ventis clean
+    clean = subparsers.add_parser(
+        "clean",
+        help="Remove generated stubs, compiled protos, and Docker contexts",
+    )
+    clean.set_defaults(func=cmd_clean)
 
     args = parser.parse_args()
     if not args.command:

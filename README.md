@@ -18,6 +18,7 @@ git clone https://github.com/your-repo/ventis.git
 cd ventis
 pip install -e .
 ```
+Note: Installation of ventis only needs to be done on the machine where you are running the deploy command. It does not need to be installed on the remote hosts where the agents are deployed. Ventis will automatically push code and environment to the remote hosts.
 
 ### 2. Prerequisites
 
@@ -33,6 +34,22 @@ pip install -e .
 ventis new-project my-app
 cd my-app
 ```
+This command creates a new directory `my-app` with the following structure:
+```
+├── agents/               # Agent implementations and YAML definitions
+│   ├── example_agent.py
+│   └── example_agent.yaml
+├── workflows/            # Workflow scripts (deployed as REST APIs)
+│   └── example_workflow.py
+├── config/
+│   ├── global_controller.yaml   # Deployment configuration
+│   └── policy.yaml              # Access control rules
+├── stubs/                # Generated agent stubs (auto-generated)
+├── grpc_stubs/           # Generated gRPC stubs (auto-generated)
+└── README.md             # Readme for the project  
+```
+Readme.md provides a quick overview of the project and how to use it. Including how to add new files etc. 
+
 
 #### Step 2: Define Your Agents
 Place your agent logic (`.py`) and definitions (`.yaml`) in the `agents/` directory.
@@ -75,6 +92,10 @@ curl -X POST http://localhost:8080/finance_workflow/run \
   -d '{
     "query": "What is the current stock price of Apple?"
   }'
+```
+The request is asynchronous. To get the result, you use the following URL-
+```bash
+curl http://localhost:8080/status/<request_id>
 ```
 
 ### Clean Generated Files
