@@ -505,16 +505,15 @@ class GlobalController(object):
         for request_id in completed:
             logger.info("Triggering cleanup for completed request %s", request_id)
             for ctrl in self.controllers:
-                host = ctrl.get("host", "localhost")
-                port = ctrl.get("port", 50051)
-                endpoint = f"{host}:{port}"
-                try:
-                    stub = self._get_lc_stub(endpoint)
-                    payload = json.dumps({"request_id": request_id})
-                    stub.Cleanup(local_controler_pb2.JsonResponse(resonse=payload))
-                    logger.debug("Sent Cleanup for request %s to %s", request_id, endpoint)
-                except Exception as e:
-                    logger.warning("Failed to trigger cleanup on %s: %s", endpoint, e)
+                for host, port in self._get_replica_placements(ctrl):
+                    endpoint = f"{host}:{port}"
+                    try:
+                        stub = self._get_lc_stub(endpoint)
+                        payload = json.dumps({"request_id": request_id})
+                        stub.Cleanup(local_controler_pb2.JsonResponse(resonse=payload))
+                        logger.debug("Sent Cleanup for request %s to %s", request_id, endpoint)
+                    except Exception as e:
+                        logger.warning("Failed to trigger cleanup on %s: %s", endpoint, e)
 
             # Remove from completed set after broadcast
             self.redis.srem("request:completed", request_id)
