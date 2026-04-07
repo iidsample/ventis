@@ -143,3 +143,6 @@ If you find Ventis (Nalar) useful for your research, please cite our paper:
       url={https://arxiv.org/abs/2601.05109}, 
 }
 ```
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
